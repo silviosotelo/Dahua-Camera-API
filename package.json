@@ -1,0 +1,28 @@
+{
+  "name": "dahua-camera-socket",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@demirdeniz/node-red-contrib-dahua-camera": "^0.0.7",
+    "axios": "^1.6.8",
+    "base-64": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.9",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "http": "^0.0.1-security",
+    "multer": "^1.4.5-lts.1",
+    "path": "^0.12.7",
+    "request": "^2.88.2",
+    "socket.io": "^4.7.5",
+    "stream": "^0.0.2",
+    "utf8": "^3.0.0"
+  },
+  "description": ""
+}

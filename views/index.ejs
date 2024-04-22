@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RTSP Player</title>
+    <style>
+        video {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <video id="rtsp-player" controls>
+        Your browser does not support the video tag.
+    </video>
+
+    <script>
+        // Reemplaza con la URL de tu cámara RTSP
+        var rtspUrl = "<%= url %>";
+
+        var player = document.getElementById('rtsp-player');
+
+        // Crea un nuevo objeto Media Source
+        var mediaSource = new MediaSource();
+        player.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener('sourceopen', function() {
+            // Crea un nuevo buffer de origen
+            var sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+
+            // Envía los datos RTSP al buffer de origen
+            fetch(rtspUrl)
+                .then(response => response.arrayBuffer())
+                .then(data => {
+                    sourceBuffer.appendBuffer(data);
+                    mediaSource.endOfStream();
+                })
+                .catch(error => {
+                    console.error('Error al transmitir video RTSP:', error);
+                });
+        });
+    </script>
+</body>
+</html>
