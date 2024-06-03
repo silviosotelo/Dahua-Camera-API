@@ -24,7 +24,7 @@ const server = http.createServer(app);
 const { CAMERAS, PORT, RECONNECT_TIMEOUT_SECONDS } = process.env;
 
 
-app.post('/addPerson', async (req, res) => {
+/*app.post('/addPerson', async (req, res) => {
     try {
         let imageSize;
         let imageBuffer;
@@ -32,32 +32,148 @@ app.post('/addPerson', async (req, res) => {
         // Obtener el nombre de la cámara del cuerpo de la solicitud
         const cameraName = req.body.cameraName;
 
-        // Buscar la configuración de la cámara por su nombre en el array CAMERAS
-        const cameraConfig = getCameraConfig(cameraName);
+        if (cameraName) {
+            // Buscar la configuración de la cámara por su nombre en el array CAMERAS
+            const cameraConfig = getCameraConfig(cameraName);
 
-        // Verificar si se encontró la configuración de la cámara
-        if (!cameraConfig) {
-            console.error(`No se encontró ninguna configuración para la cámara con el nombre: ${cameraName}`);
-            return res.status(404).send('No se encontró ninguna configuración para la cámara especificada.');
+            // Verificar si se encontró la configuración de la cámara
+            if (!cameraConfig) {
+                console.error(`No se encontró ninguna configuración para la cámara con el nombre: ${cameraName}`);
+                return res.status(404).send('No se encontró ninguna configuración para la cámara especificada.');
+            }
+
+            // Construir la URL de la solicitud utilizando la configuración de la cámara
+            const cameraUrl = `http://${cameraConfig.host}:${cameraConfig.port}/cgi-bin/faceRecognitionServer.cgi?action=addPerson&groupID=1&name=${req.body.name}&certificateType=IC&id=${req.body.id}`;
+
+            // Manejar imagen desde URL
+            try {
+                imageBuffer = await axios.get(req.body.imageUrl, { responseType: "arraybuffer" });
+                imageSize = imageBuffer.data.length; // Tamaño de la imagen en bytes
+            } catch (downloadError) {
+                console.error('Error al descargar la imagen:', downloadError);
+                return res.status(500).send('Error al descargar la imagen.');
+            }
+            // Opciones para la solicitud
+            const options = {
+                method: 'POST',
+                url: cameraUrl,
+                headers: {
+                    'Content-Type': 'image/jpeg',
+                    'Content-Length': imageSize
+                },
+                body: imageBuffer.data
+            };
+
+            request(options, function (error, response, body) {
+                if (error) {
+                    console.error('Error al realizar la solicitud:', error);
+                    return res.status(500).send('Error interno del servidor al realizar la solicitud.');
+                }
+                // También podrías querer verificar el código de estado HTTP de la respuesta aquí
+                if (response.statusCode >= 400) {
+                    console.error('Respuesta de error del servidor remoto:', body);
+                    return res.status(response.statusCode).send(body);
+                }
+                const responseText = body.trim().split('\r\n');
+                const parsedObject = {};
+
+                responseText.forEach(line => {
+                    // Descompone la línea en clave y valor
+                    let [key, value] = line.split('=');
+                    // Convierte "true" y "false" a booleanos, y intenta convertir números
+                    if (value === "true") value = true;
+                    if (value === "false") value = false;
+                    if (!isNaN(value) && value !== "") value = Number(value);
+
+                    // Navega y construye la estructura del objeto según la clave
+                    const parts = key.split('.');
+                    let current = parsedObject;
+                    parts.forEach((part, index) => {
+                        // Verifica si es parte de un array
+                        const match = part.match(/([a-zA-Z]+)\[([0-9]+)\]/);
+                        if (match) {
+                            const [, arrayName, arrayIndex] = match;
+                            current[arrayName] = current[arrayName] || []; // Asegura que el array exista
+                            current[arrayName][arrayIndex] = current[arrayName][arrayIndex] || {}; // Asegura que el objeto en el índice exista
+                            if (index === parts.length - 1) {
+                                current[arrayName][arrayIndex] = value; // Asigna el valor si es el final
+                            } else {
+                                current = current[arrayName][arrayIndex]; // De lo contrario, continúa construyendo dentro de este objeto
+                            }
+                        } else {
+                            if (index === parts.length - 1) {
+                                current[part] = value; // Asigna el valor si es el final
+                            } else {
+                                current[part] = current[part] || {}; // Asegura que el objeto exista
+                                current = current[part]; // Continúa construyendo dentro de este objeto
+                            }
+                        }
+                    });
+                });
+
+                console.log('Respuesta exitosa del servidor:', JSON.parse(JSON.stringify(parsedObject, null, 2)));
+                res.send(JSON.parse(JSON.stringify(parsedObject, null, 2)));
+            }).auth(process.env.CAM_USER, process.env.CAM_PASS, false);
+        }
+        else {
+            JSON.parse(CAMERAS).forEach(camera => {
+
+            });
         }
 
-        // Construir la URL de la solicitud utilizando la configuración de la cámara
-        const cameraUrl = `http://${cameraConfig.host}:${cameraConfig.port}/cgi-bin/faceRecognitionServer.cgi?action=addPerson&groupID=1&name=${req.body.name}&certificateType=IC&id=${req.body.id}`;
+
+    } catch (error) {
+        console.error('Error to Request New Person: ', error);
+        res.status(500).send('Error interno del servidor.');
+    }
+});*/
 
 
+app.post('/addPerson', async (req, res) => {
+    try {
+        let imageBuffer;
+        let imageSize;
+
+        // Obtener el nombre de la cámara del cuerpo de la solicitud
+        const cameraName = req.body.cameraName;
 
         // Manejar imagen desde URL
         try {
-            imageBuffer = await axios.get(req.body.imageUrl, { responseType: "arraybuffer" });
+            imageBuffer = await axios.get(req.body.imageUrl, { responseType: 'arraybuffer' });
             imageSize = imageBuffer.data.length; // Tamaño de la imagen en bytes
         } catch (downloadError) {
-            console.error('Error al descargar la imagen:', downloadError);
+            console.error('Error al descargar la imagen: ', downloadError);
             return res.status(500).send('Error al descargar la imagen.');
         }
-        // Opciones para la solicitud
+
+        // Si no se le envía el parámetro del nombre de la cámara, recorre todas las cámaras
+        if (!cameraName) {
+            const cameraPromises = JSON.parse(CAMERAS).map(camera => addPersonToCamera(req.body, camera, imageBuffer, imageSize));
+            await Promise.all(cameraPromises);
+            res.send('Person added to all cameras successfully');
+        } else {
+            // Buscar la configuración de la cámara específica
+            const camera = JSON.parse(CAMERAS).find(cam => cam.name === cameraName);
+
+            if (camera) {
+                await addPersonToCamera(req.body, camera, imageBuffer, imageSize);
+                res.send(`Person added to camera ${cameraName} successfully`);
+            } else {
+                res.status(400).send('Cámara no encontrada');
+            }
+        }
+    } catch (error) {
+        console.error('Error to Request New Person: ', error);
+        res.status(500).send('Error interno del servidor.');
+    }
+});
+
+// Función para agregar una persona a una cámara específica
+async function addPersonToCamera(body, camera, imageBuffer, imageSize) {
+    return new Promise((resolve, reject) => {
         const options = {
             method: 'POST',
-            url: cameraUrl,
+            url: `http://${camera.host}:${camera.port}/cgi-bin/faceRecognitionServer.cgi?action=addPerson&groupID=1&name=${body.name}&certificateType=IC&id=${body.id}`,
             headers: {
                 'Content-Type': 'image/jpeg',
                 'Content-Length': imageSize
@@ -68,60 +184,53 @@ app.post('/addPerson', async (req, res) => {
         request(options, function (error, response, body) {
             if (error) {
                 console.error('Error al realizar la solicitud:', error);
-                return res.status(500).send('Error interno del servidor al realizar la solicitud.');
+                reject('Error interno del servidor al realizar la solicitud.');
+                return;
             }
-            // También podrías querer verificar el código de estado HTTP de la respuesta aquí
             if (response.statusCode >= 400) {
                 console.error('Respuesta de error del servidor remoto:', body);
-                return res.status(response.statusCode).send(body);
+                reject(body);
+                return;
             }
+            console.log('Reponse Person Headers:', response.headers);
             const responseText = body.trim().split('\r\n');
             const parsedObject = {};
 
             responseText.forEach(line => {
-                // Descompone la línea en clave y valor
                 let [key, value] = line.split('=');
-                // Convierte "true" y "false" a booleanos, y intenta convertir números
                 if (value === "true") value = true;
                 if (value === "false") value = false;
                 if (!isNaN(value) && value !== "") value = Number(value);
 
-                // Navega y construye la estructura del objeto según la clave
                 const parts = key.split('.');
                 let current = parsedObject;
                 parts.forEach((part, index) => {
-                    // Verifica si es parte de un array
                     const match = part.match(/([a-zA-Z]+)\[([0-9]+)\]/);
                     if (match) {
                         const [, arrayName, arrayIndex] = match;
-                        current[arrayName] = current[arrayName] || []; // Asegura que el array exista
-                        current[arrayName][arrayIndex] = current[arrayName][arrayIndex] || {}; // Asegura que el objeto en el índice exista
+                        current[arrayName] = current[arrayName] || [];
+                        current[arrayName][arrayIndex] = current[arrayName][arrayIndex] || {};
                         if (index === parts.length - 1) {
-                            current[arrayName][arrayIndex] = value; // Asigna el valor si es el final
+                            current[arrayName][arrayIndex] = value;
                         } else {
-                            current = current[arrayName][arrayIndex]; // De lo contrario, continúa construyendo dentro de este objeto
+                            current = current[arrayName][arrayIndex];
                         }
                     } else {
                         if (index === parts.length - 1) {
-                            current[part] = value; // Asigna el valor si es el final
+                            current[part] = value;
                         } else {
-                            current[part] = current[part] || {}; // Asegura que el objeto exista
-                            current = current[part]; // Continúa construyendo dentro de este objeto
+                            current[part] = current[part] || {};
+                            current = current[part];
                         }
                     }
                 });
             });
 
             console.log('Respuesta exitosa del servidor:', JSON.parse(JSON.stringify(parsedObject, null, 2)));
-            res.send(JSON.parse(JSON.stringify(parsedObject, null, 2)));
-        }).auth(process.env.CAM_USER, process.env.CAM_PASS, false);
-
-    } catch (error) {
-        console.error('Error to Request New Person: ', error);
-        res.status(500).send('Error interno del servidor.');
-    }
-});
-
+            resolve();
+        }).auth(camera.username, camera.password, false);
+    });
+}
 
 // Función para conectarse a las cámaras y suscribirse a los eventos
 function connectToCameras() {
@@ -209,7 +318,7 @@ function handleDahuaEventData(data, cameraHost) {
     });
 }
 
-function getCameraConfig(cameraName){
+function getCameraConfig(cameraName) {
     const camConfig = JSON.parse(CAMERAS).find(camera => camera.name === cameraName);
     return camConfig;
 }
